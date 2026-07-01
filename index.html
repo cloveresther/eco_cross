@@ -1,0 +1,922 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>성모동산 은행나무 십자가 사전예약</title>
+<meta name="description" content="소하동성당 성모동산 은행나무로 제작한 십자가 사전예약">
+
+<!-- Firebase (compat SDK: 단일 HTML 배포에 적합) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- 엑셀(관리자 내보내기): ExcelJS, 실패 시 무시 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+<style>
+  :root{
+    /* 은행나무 잎의 깊은 녹 + 목재 결의 황금빛 */
+    --ink:#27331f;          /* 본문 짙은 잎녹 */
+    --sub:#6b7560;          /* 보조 텍스트 */
+    --line:#e3e2d6;         /* 경계선 */
+    --bg:#f7f6ef;           /* 배경: 한지/나무 결 느낌 */
+    --card:#ffffff;
+    --leaf:#5b7048;         /* 메인 잎녹 */
+    --leaf-d:#41562f;       /* 진한 잎녹 */
+    --wood:#c9a227;         /* 목재 황금 */
+    --wood-d:#a9851a;
+    --warn:#c0392b;         /* 마감·경고 */
+    --ok:#2e7d4f;
+    --shadow:0 1px 4px rgba(40,50,30,.07),0 6px 22px rgba(40,50,30,.06);
+    --radius:14px;
+    --maxw:720px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 16px 56px;width:100%}
+
+  /* ── 헤더 ── */
+  header{padding:26px 16px 0;text-align:center}
+  .eyebrow{font-size:13px;color:var(--leaf);font-weight:700;letter-spacing:.06em}
+  h1{font-size:25px;font-weight:800;margin-top:6px;letter-spacing:-.01em}
+  h1 .accent{color:var(--leaf)}
+  .lede{font-size:14px;color:var(--sub);margin-top:10px;line-height:1.7}
+
+  /* ── 잎맥 구분선(시그니처) ── */
+  .vein{display:flex;align-items:center;gap:10px;margin:22px 0 18px;color:var(--leaf)}
+  .vein::before,.vein::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+  .vein svg{width:20px;height:20px;flex:none;opacity:.8}
+
+  /* ── 카드 ── */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+  .card h2{font-size:16px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .card h2 .dot{width:7px;height:16px;border-radius:3px;background:linear-gradient(180deg,var(--leaf),var(--wood))}
+
+  /* ── 재고 현황 ── */
+  .stock{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .stock .item{border:1px solid var(--line);border-radius:11px;padding:14px;background:#fbfbf6}
+  .stock .item .nm{font-size:14px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline}
+  .stock .item .nm .price{font-size:12px;color:var(--sub);font-weight:600}
+  .stock .item .bar{height:8px;border-radius:99px;background:#ecebe0;margin:10px 0 7px;overflow:hidden}
+  .stock .item .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--leaf),var(--wood));transition:width .5s}
+  .stock .item .left{font-size:12.5px;color:var(--sub)}
+  .stock .item .left b{color:var(--ink);font-size:15px;font-weight:800}
+  .stock .item.soldout .bar i{background:#cfd2c6}
+  .stock .item.soldout .left b{color:var(--warn)}
+  .soldout-chip{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--warn);border-radius:6px;padding:1px 7px;margin-left:6px}
+
+  /* ── 폼 ── */
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:13.5px;font-weight:700;margin-bottom:6px}
+  .field label .req{color:var(--warn);margin-left:2px}
+  .field .hint{font-size:11.5px;color:var(--sub);font-weight:500;margin-top:5px;line-height:1.5}
+  input[type=text],input[type=tel],select,textarea{
+    width:100%;font:inherit;font-size:15px;color:var(--ink);background:#fff;
+    border:1px solid var(--line);border-radius:10px;padding:11px 12px;outline:none;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--leaf);box-shadow:0 0 0 3px rgba(91,112,72,.13)}
+  input::placeholder{color:#b7bba9}
+
+  /* 수량 스테퍼 */
+  .qtyrow{display:flex;align-items:center;gap:14px}
+  .qtyrow .qlbl{flex:1;font-size:14px}
+  .qtyrow .qlbl .sub{font-size:12px;color:var(--sub);display:block}
+  .stepper{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}
+  .stepper button{width:38px;height:40px;border:none;background:#f4f3ea;font-size:20px;color:var(--leaf-d);cursor:pointer;line-height:1}
+  .stepper button:active{background:#e8e7da}
+  .stepper button:disabled{color:#c7cabb;cursor:not-allowed}
+  .stepper .val{width:42px;text-align:center;font-size:16px;font-weight:800}
+
+  /* 각인 입력 */
+  .engrave-list{display:flex;flex-direction:column;gap:8px}
+  .engrave-list .er{display:flex;align-items:center;gap:8px}
+  .engrave-list .er .idx{font-size:12px;color:var(--sub);font-weight:700;flex:none;width:42px}
+  .engrave-list .er .cnt{font-size:11px;color:var(--sub);flex:none;width:42px;text-align:right}
+
+  .check{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--sub);line-height:1.5}
+  .check input{margin-top:3px;width:16px;height:16px;flex:none;accent-color:var(--leaf)}
+  .check a{color:var(--leaf);text-decoration:underline;cursor:pointer}
+
+  .btn{display:block;width:100%;font:inherit;font-size:16px;font-weight:800;color:#fff;
+    background:linear-gradient(135deg,var(--leaf),var(--leaf-d));border:none;border-radius:12px;
+    padding:15px;cursor:pointer;transition:filter .15s,transform .05s;letter-spacing:.02em}
+  .btn:hover{filter:brightness(1.05)}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{background:#c2c6b8;cursor:not-allowed;filter:none}
+  .btn.ghost{background:#fff;color:var(--leaf-d);border:1.5px solid var(--leaf)}
+
+  .total{display:flex;justify-content:space-between;align-items:baseline;padding:13px 2px 2px;margin-top:4px;border-top:1px dashed var(--line)}
+  .total .l{font-size:14px;color:var(--sub);font-weight:600}
+  .total .v{font-size:22px;font-weight:800;color:var(--leaf-d)}
+  .total .v small{font-size:14px;font-weight:700}
+
+  /* 안내(계좌) */
+  .acct{background:#f4f3ea;border-radius:11px;padding:14px;font-size:14px}
+  .acct .row{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
+  .acct .row .k{color:var(--sub)}
+  .acct .row .v{font-weight:700;text-align:right}
+  .acct .copy{font-size:12px;color:var(--leaf);font-weight:700;cursor:pointer;border:none;background:none;text-decoration:underline}
+
+  /* 마감 배너 */
+  .closed{background:#fcefed;border:1px solid #f3c9c3;border-radius:12px;padding:16px;text-align:center;color:var(--warn);font-weight:700;font-size:14.5px;margin-bottom:14px}
+
+  /* 토스트 */
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+    background:#27331f;color:#fff;font-size:14px;font-weight:600;padding:12px 18px;border-radius:99px;
+    box-shadow:0 6px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:.25s;z-index:90;max-width:90vw;text-align:center}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* 모달 */
+  .modal{position:fixed;inset:0;background:rgba(30,38,22,.5);display:none;align-items:center;justify-content:center;padding:18px;z-index:80}
+  .modal.show{display:flex}
+  .modal .box{background:#fff;border-radius:16px;max-width:440px;width:100%;max-height:88vh;overflow:auto;padding:22px}
+  .modal .box h3{font-size:18px;font-weight:800;margin-bottom:6px}
+  .modal .box .sub{font-size:13px;color:var(--sub);margin-bottom:16px}
+  .receipt{background:#f4f3ea;border-radius:12px;padding:16px;margin:14px 0}
+  .receipt .no{font-size:13px;color:var(--sub)}
+  .receipt .no b{font-size:20px;color:var(--leaf-d);font-weight:800;letter-spacing:.02em}
+
+  .footer{text-align:center;font-size:12px;color:var(--sub);margin-top:26px;line-height:1.7}
+  .adminlink{color:var(--line);font-size:11px}
+
+  /* ── 관리자 ── */
+  .admin-wrap{display:none}
+  .admin-wrap.show{display:block}
+  .public-wrap.hide{display:none}
+  .stat{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px}
+  .stat .s{background:#fff;border:1px solid var(--line);border-radius:11px;padding:12px 10px;text-align:center}
+  .stat .s .n{font-size:21px;font-weight:800;color:var(--leaf-d)}
+  .stat .s .t{font-size:11px;color:var(--sub);margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{font-size:11.5px;color:var(--sub);font-weight:700;background:#faf9f3;position:sticky;top:0}
+  .tbl-scroll{overflow:auto;border:1px solid var(--line);border-radius:11px;max-height:60vh}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:7px}
+  .badge.paid{background:#e3f3e9;color:var(--ok)}
+  .badge.reserved{background:#fdf3dc;color:var(--wood-d)}
+  .badge.canceled{background:#f0eeee;color:#999;text-decoration:line-through}
+  .minibtn{font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:7px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink)}
+  .minibtn.pay{border-color:var(--ok);color:var(--ok)}
+  .minibtn.cancel{border-color:#d8b4ae;color:var(--warn)}
+  .adminbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  @media(max-width:520px){
+    .stat{grid-template-columns:repeat(2,1fr)}
+    h1{font-size:22px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ 공개: 신청 화면 ============ -->
+<div class="public-wrap" id="publicWrap">
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">성모동산 은행나무로 제작한</div>
+    <h1>십자가 <span class="accent">사전예약</span></h1>
+    <p class="lede">소하동성당 성모동산을 오래 지켜온 은행나무로<br>거룩한 십자가를 제작하였습니다.</p>
+  </header>
+
+  <div class="vein">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v18M12 7c-2-2-5-2-7-1M12 11c-2-2-5-2-7-1M12 9c2-2 5-2 7-1M12 13c2-2 5-2 7-1"/></svg>
+  </div>
+
+  <!-- 마감 배너(조건부) -->
+  <div class="closed" id="closedBanner" style="display:none"></div>
+
+  <!-- 신청 폼 -->
+  <form class="card" id="resForm" autocomplete="on">
+    <h2><span class="dot"></span>신청서 작성</h2>
+
+    <div class="field">
+      <label>성명 <span class="req">*</span></label>
+      <input type="text" id="fName" placeholder="홍길동" required maxlength="20">
+    </div>
+
+    <div class="field">
+      <label>연락처 <span class="req">*</span></label>
+      <input type="tel" id="fPhone" placeholder="010-1234-5678" required maxlength="14" inputmode="numeric">
+    </div>
+
+    <!-- 수량 -->
+    <div class="field">
+      <label>신청 수량 <span class="req">*</span></label>
+      <div class="qtyrow">
+        <div class="qlbl">십자가 <span class="sub">개당 30,000원 · 110×198mm</span></div>
+        <div class="stepper" data-for="cross">
+          <button type="button" data-d="-1" aria-label="십자가 줄이기">−</button>
+          <span class="val" id="qCross">0</span>
+          <button type="button" data-d="1" aria-label="십자가 늘리기">+</button>
+        </div>
+      </div>
+      <div class="hint">여러 개도 신청하실 수 있습니다.</div>
+    </div>
+
+    <!-- 각인 (십자가 수량만큼) -->
+    <div class="field" id="engraveField" style="display:none">
+      <label>각인 문구 <span style="font-weight:500;color:var(--sub)">(앞면 하단 · 성명+세례명, 15자 이내)</span></label>
+      <div class="engrave-list" id="engraveList"></div>
+      <div class="hint">예) 유재걸 프란치스코 · 비워두면 각인 없이 제작됩니다.</div>
+    </div>
+
+    <!-- 입금자명 -->
+    <div class="field">
+      <label>입금자명 <span class="req">*</span></label>
+      <input type="text" id="fPayer" placeholder="신청자와 다르면 입금하실 분 성함" required maxlength="20">
+      <div class="hint">신청 후 아래 계좌로 입금해 주시면, 입금 확인 시 예약이 확정됩니다.</div>
+    </div>
+
+    <div class="field">
+      <label class="check">
+        <input type="checkbox" id="fAgree" required>
+        <span>개인정보(성명·연락처) 수집에 동의합니다. 수집한 정보는 예약 확인과 제작·전달 안내에만 사용되며, 행사 종료 후 파기됩니다.</span>
+      </label>
+    </div>
+
+    <div class="total">
+      <span class="l">결제 예정 금액</span>
+      <span class="v" id="totalAmt">0<small>원</small></span>
+    </div>
+
+    <button type="submit" class="btn" id="submitBtn" style="margin-top:14px">사전예약 신청하기</button>
+  </form>
+
+  <!-- 내 신청 조회 -->
+  <div class="card">
+    <h2><span class="dot"></span>내 신청 조회 · 수정</h2>
+    <p style="font-size:13px;color:var(--sub);margin-bottom:12px;line-height:1.6">이미 신청하셨다면 성명과 연락처로 신청 내역을 확인하고 수정할 수 있습니다.</p>
+    <button type="button" class="btn ghost" id="lookupOpen">내 신청 내역 확인하기</button>
+  </div>
+
+  <!-- 계좌 안내 -->
+  <div class="card">
+    <h2><span class="dot"></span>입금 계좌</h2>
+    <div class="acct">
+      <div class="row"><span class="k">은행</span><span class="v">농협은행</span></div>
+      <div class="row"><span class="k">계좌번호</span><span class="v">302-1898-9079-11 <button class="copy" type="button" id="copyAcct">복사</button></span></div>
+      <div class="row"><span class="k">예금주</span><span class="v">김진옥</span></div>
+    </div>
+    <div class="hint" style="margin-top:10px">제작원가 외 판매수익금은 전액 건축헌금으로 봉헌합니다. · 제작기간 약 1개월 소요예정</div>
+  </div>
+
+  <div class="footer">
+    천주교 수원교구 소하동성당<br>
+    문의: 성당 사무실
+    <div style="margin-top:14px"><span class="adminlink" id="adminHint">관리</span></div>
+  </div>
+
+</div>
+</div>
+
+<!-- ============ 관리자 화면 ============ -->
+<div class="admin-wrap" id="adminWrap">
+<div class="wrap">
+  <header style="text-align:left;padding-top:22px">
+    <div class="eyebrow">관리자</div>
+    <h1 style="font-size:20px">사전예약 관리</h1>
+  </header>
+  <div class="vein"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v18M12 7c-2-2-5-2-7-1M12 9c2-2 5-2 7-1"/></svg></div>
+
+  <div class="stat" id="adminStat"></div>
+
+  <div class="adminbar">
+    <button class="minibtn" id="btnOffline">+ 오프라인 등록</button>
+    <button class="minibtn" id="btnExport">엑셀 내보내기</button>
+    <button class="minibtn" id="btnAdjust">재고 기준 설정</button>
+    <button class="minibtn" id="btnLogout" style="margin-left:auto">로그아웃</button>
+  </div>
+
+  <div class="tbl-scroll">
+    <table id="resTable">
+      <thead><tr>
+        <th>접수번호</th><th>상태</th><th>성명/연락처</th><th>수량</th><th>각인</th><th>금액</th><th>입금자</th><th>관리</th>
+      </tr></thead>
+      <tbody id="resTbody"></tbody>
+    </table>
+  </div>
+
+  <div class="footer">소하동성당 · 사전예약 관리 콘솔</div>
+</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- 비밀번호 모달 -->
+<div class="modal" id="pwModal">
+  <div class="box">
+    <h3>관리자 인증</h3>
+    <p class="sub">관리자 비밀번호를 입력하세요.</p>
+    <input type="password" id="pwInput" placeholder="비밀번호" style="width:100%;font:inherit;font-size:15px;border:1px solid var(--line);border-radius:10px;padding:11px 12px">
+    <button class="btn" id="pwSubmit" style="margin-top:14px">확인</button>
+    <button class="btn ghost" id="pwCancel" style="margin-top:8px">취소</button>
+  </div>
+</div>
+
+<!-- 완료(접수번호) 모달 -->
+<div class="modal" id="doneModal">
+  <div class="box">
+    <h3>신청이 접수되었습니다</h3>
+    <p class="sub">아래 계좌로 입금해 주시면 예약이 확정됩니다.</p>
+    <div class="receipt">
+      <div class="no">접수번호 <b id="doneNo">—</b></div>
+      <div style="margin-top:10px;font-size:14px" id="doneSummary"></div>
+    </div>
+    <div class="acct">
+      <div class="row"><span class="k">농협은행</span><span class="v">302-1898-9079-11</span></div>
+      <div class="row"><span class="k">예금주</span><span class="v">김진옥</span></div>
+      <div class="row"><span class="k">입금액</span><span class="v" id="doneAmt">—</span></div>
+    </div>
+    <button class="btn" id="doneClose" style="margin-top:16px">확인</button>
+  </div>
+</div>
+
+<!-- 오프라인 등록 모달 -->
+<div class="modal" id="offModal">
+  <div class="box">
+    <h3>오프라인 등록</h3>
+    <p class="sub">사무실 접수분을 입력합니다. 즉시 잔여 수량에서 차감됩니다.</p>
+    <div class="field"><label>성명</label><input type="text" id="offName" maxlength="20"></div>
+    <div class="field"><label>연락처</label><input type="tel" id="offPhone" maxlength="14"></div>
+    <div class="qtyrow" style="margin-bottom:14px"><div class="qlbl">십자가 수량</div>
+      <div class="stepper" data-for="offcross"><button type="button" data-d="-1">−</button><span class="val" id="offQCross">0</span><button type="button" data-d="1">+</button></div></div>
+    <div class="field"><label>각인(선택, 줄바꿈으로 여러 개)</label><textarea id="offEngrave" rows="2" placeholder="유재걸 프란치스코"></textarea></div>
+    <label class="check" style="margin-bottom:14px"><input type="checkbox" id="offPaid"><span>이미 입금 완료(확정)</span></label>
+    <button class="btn" id="offSubmit">등록</button>
+    <button class="btn ghost" id="offCancel" style="margin-top:8px">취소</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   설정 — 배포 전 채워주세요
+   ========================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCHklwOWbVgF4D3Fvvgl7UKWNEaLOe_FMg",
+  authDomain: "soha-eco.firebaseapp.com",
+  projectId: "soha-eco",
+  storageBucket: "soha-eco.firebasestorage.app",
+  messagingSenderId: "82244954419",
+  appId: "1:82244954419:web:dc1f0aa340308f847cb646"
+};
+const ADMIN_PASSWORD = "sohaeco24";   // 관리자 비밀번호
+const ADMIN_HASH = "#manage";        // 관리자 진입 URL 해시 (예: .../#manage)
+
+const LIMIT = { cross:200, plaque:300 };   // 한정 수량 기준
+const PRICE = { cross:30000, plaque:10000 };
+const ENGRAVE_MAX = 15;
+
+/* =========================================================
+   Firebase 초기화
+   ========================================================= */
+let db=null, fbReady=false;
+try{
+  if(FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.projectId!=="YOUR_PROJECT_ID"){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db=firebase.firestore();
+    fbReady=true;
+  }
+}catch(e){ console.warn("Firebase init 실패",e); }
+
+const COL = ()=>db.collection("reservations");          // 신청 문서
+const META = ()=>db.collection("meta").doc("inventory"); // 집계(차감 카운터)
+
+/* =========================================================
+   상태
+   ========================================================= */
+let used = { cross:0, plaque:0 };   // 점유(reserved+paid) 수량 — meta에서 동기화
+let qty  = { cross:0, plaque:0 };   // 폼 입력 수량
+let offQty = { cross:0, plaque:0 };
+let isAdmin=false;
+let _unsubRes=null, _unsubMeta=null;
+
+const $=s=>document.querySelector(s);
+const $$=s=>document.querySelectorAll(s);
+const won=n=>n.toLocaleString('ko-KR');
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
+const remain = k => Math.max(0, LIMIT[k]-used[k]);
+
+/* =========================================================
+   재고 표시
+   ========================================================= */
+function renderStock(){
+  // 공개 화면에는 남은 수량을 표시하지 않는다. (관리자 통계는 renderAdmin에서 별도 표시)
+  // 폼 입력이 잔여 초과 시 보정
+  if(qty.cross>remain('cross')) qty.cross=remain('cross');
+  syncForm();
+  // 십자가 마감 시 배너
+  const cb=$('#closedBanner');
+  if(remain('cross')<=0){
+    cb.style.display='block';
+    cb.textContent='사전예약이 마감되었습니다. 관심과 사랑에 감사드립니다.';
+    $('#resForm').style.opacity='.5'; $('#resForm').style.pointerEvents='none';
+  }else{
+    cb.style.display='none';
+    $('#resForm').style.opacity=''; $('#resForm').style.pointerEvents='';
+  }
+}
+
+/* =========================================================
+   수량 스테퍼 + 각인칸 + 합계
+   ========================================================= */
+function syncForm(){
+  $('#qCross').textContent=qty.cross;
+  // 각인칸: 십자가 수량만큼
+  const wrap=$('#engraveList'); const field=$('#engraveField');
+  const cur=wrap.querySelectorAll('.er').length;
+  if(qty.cross>0){ field.style.display='block'; } else { field.style.display='none'; }
+  if(qty.cross!==cur){
+    const prev=[...wrap.querySelectorAll('.er input')].map(i=>i.value);
+    wrap.innerHTML='';
+    for(let i=0;i<qty.cross;i++){
+      const row=document.createElement('div'); row.className='er';
+      row.innerHTML=`<span class="idx">${i+1}번</span>
+        <input type="text" maxlength="${ENGRAVE_MAX}" placeholder="성명+세례명 (선택)" value="${prev[i]?prev[i].replace(/"/g,'&quot;'):''}">
+        <span class="cnt">0/${ENGRAVE_MAX}</span>`;
+      const inp=row.querySelector('input'); const cnt=row.querySelector('.cnt');
+      const upd=()=>cnt.textContent=`${inp.value.length}/${ENGRAVE_MAX}`;
+      inp.addEventListener('input',upd); upd();
+      wrap.appendChild(row);
+    }
+  }
+  // 합계
+  const total=qty.cross*PRICE.cross;
+  $('#totalAmt').innerHTML=`${won(total)}<small>원</small>`;
+  // 버튼 상태
+  $('#submitBtn').disabled = qty.cross===0;
+}
+
+function bindSteppers(){
+  document.querySelectorAll('.stepper').forEach(st=>{
+    const key=st.dataset.for;
+    st.querySelectorAll('button').forEach(b=>{
+      b.addEventListener('click',()=>{
+        const d=parseInt(b.dataset.d,10);
+        if(key==='cross'||key==='plaque'){
+          let v=qty[key]+d;
+          v=Math.max(0,Math.min(v,remain(key)));
+          if(v===qty[key]&&d>0&&remain(key)===qty[key]){ toast('남은 수량을 초과할 수 없습니다.'); }
+          qty[key]=v; syncForm();
+        }else{ // 오프라인 모달
+          if(key==='offcross'){ let v=Math.max(0,offQty.cross+d); offQty.cross=v; $('#offQCross').textContent=v; }
+        }
+      });
+    });
+  });
+}
+
+/* =========================================================
+   신청 제출 (Firestore 트랜잭션으로 재고 초과 방지)
+   ========================================================= */
+async function submitReservation(e){
+  e.preventDefault();
+  if(!fbReady){ toast('서버 연결이 설정되지 않았습니다. (Firebase 설정 필요)'); return; }
+  const name=$('#fName').value.trim();
+  const phone=$('#fPhone').value.trim();
+  const payer=$('#fPayer').value.trim();
+  const agree=$('#fAgree').checked;
+  if(!name||!phone){ toast('성명과 연락처를 입력해 주세요.'); return; }
+  if(qty.cross===0){ toast('수량을 선택해 주세요.'); return; }
+  if(!payer){ toast('입금자명을 입력해 주세요.'); return; }
+  if(!agree){ toast('개인정보 수집에 동의해 주세요.'); return; }
+
+  const engraves=[...$('#engraveList').querySelectorAll('input')].map(i=>i.value.trim());
+  const order={cross:qty.cross,plaque:0};
+  const amount=order.cross*PRICE.cross;
+
+  $('#submitBtn').disabled=true; $('#submitBtn').textContent='접수 중…';
+  try{
+    const docId = await runReserveTxn(order, {
+      name,phone,payer,group:'',engraves,amount,
+      channel:'online', status:'reserved',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // 완료 모달
+    $('#doneNo').textContent=docId;
+    let sum=[]; if(order.cross)sum.push(`십자가 ${order.cross}개`); if(order.plaque)sum.push(`교우패 ${order.plaque}개`);
+    $('#doneSummary').textContent=sum.join(' · ');
+    $('#doneAmt').textContent=won(amount)+'원';
+    $('#doneModal').classList.add('show');
+    // 폼 리셋
+    qty={cross:0,plaque:0}; $('#resForm').reset(); syncForm();
+  }catch(err){
+    console.warn(err);
+    toast(err.message||'신청 처리 중 문제가 발생했습니다. 다시 시도해 주세요.');
+  }finally{
+    $('#submitBtn').disabled=false; $('#submitBtn').textContent='사전예약 신청하기';
+  }
+}
+
+/* 재고 카운터를 트랜잭션으로 점유하고 신청 문서를 생성. 접수번호(짧은 ID) 반환 */
+async function runReserveTxn(order, payload){
+  const metaRef=META();
+  const resRef=COL().doc();
+  const shortNo='SH'+Date.now().toString(36).slice(-5).toUpperCase();
+  await db.runTransaction(async tx=>{
+    const m=await tx.get(metaRef);
+    const cur=m.exists?m.data():{cross:0,plaque:0};
+    const nc=(cur.cross||0)+order.cross;
+    const np=(cur.plaque||0)+order.plaque;
+    if(nc>LIMIT.cross) throw new Error('십자가 잔여 수량이 부족합니다.');
+    if(np>LIMIT.plaque) throw new Error('교우패 잔여 수량이 부족합니다.');
+    tx.set(metaRef,{cross:nc,plaque:np},{merge:true});
+    tx.set(resRef,{...payload,no:shortNo});
+  });
+  return shortNo;
+}
+
+/* =========================================================
+   meta(재고) 실시간 구독 — 공개 화면
+   ========================================================= */
+function subscribeMeta(){
+  if(!fbReady){ renderStock(); return; }
+  _unsubMeta = META().onSnapshot(d=>{
+    const m=d.exists?d.data():{cross:0,plaque:0};
+    used.cross=m.cross||0; used.plaque=m.plaque||0;
+    renderStock();
+  }, err=>{ console.warn('meta 구독 실패',err); renderStock(); });
+}
+
+/* =========================================================
+   관리자
+   ========================================================= */
+function enterAdmin(){
+  isAdmin=true;
+  $('#publicWrap').classList.add('hide');
+  $('#adminWrap').classList.add('show');
+  if(_unsubRes) _unsubRes();
+  if(!fbReady){ toast('Firebase 설정이 필요합니다.'); return; }
+  _unsubRes = COL().orderBy('createdAt','desc').onSnapshot(snap=>{
+    const rows=[]; snap.forEach(d=>rows.push({id:d.id,...d.data()}));
+    renderAdmin(rows);
+  }, err=>{ console.warn(err); toast('목록을 불러오지 못했습니다.'); });
+}
+function exitAdmin(){
+  isAdmin=false;
+  if(_unsubRes){_unsubRes();_unsubRes=null;}
+  $('#adminWrap').classList.remove('show');
+  $('#publicWrap').classList.remove('hide');
+  if(location.hash) history.replaceState(null,'',location.pathname);
+}
+
+function renderAdmin(rows){
+  // 통계
+  const act=rows.filter(r=>r.status!=='canceled');
+  const paid=act.filter(r=>r.status==='paid');
+  const sum=(arr,k)=>arr.reduce((s,r)=>s+(r[k]||0),0);
+  const paidAmt=paid.reduce((s,r)=>s+(r.amount||0),0);
+  $('#adminStat').innerHTML=`
+    <div class="s"><div class="n">${act.length}</div><div class="t">유효 신청</div></div>
+    <div class="s"><div class="n">${paid.length}</div><div class="t">입금확인</div></div>
+    <div class="s"><div class="n">${remain('cross')}</div><div class="t">잔여 십자가</div></div>
+    <div class="s"><div class="n">${won(paidAmt)}</div><div class="t">입금합계(원)</div></div>`;
+  // 테이블
+  const tb=$('#resTbody'); tb.innerHTML='';
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    const stCls=r.status==='paid'?'paid':r.status==='canceled'?'canceled':'reserved';
+    const stTxt=r.status==='paid'?'입금확인':r.status==='canceled'?'취소':'대기';
+    const q=[]; if(r.cross)q.push(`십자가 ${r.cross}개`); if(r.plaque)q.push(`교우패 ${r.plaque}개`);
+    const eng=(r.engraves||[]).filter(Boolean).join(', ');
+    const ch=r.channel==='offline'?' <span style="color:var(--sub);font-size:10px">(오프)</span>':'';
+    let act='';
+    if(r.status==='reserved') act=`<button class="minibtn pay" data-pay="${r.id}">입금확인</button> <button class="minibtn cancel" data-cancel="${r.id}">취소</button>`;
+    else if(r.status==='paid') act=`<button class="minibtn cancel" data-cancel="${r.id}">취소</button>`;
+    else act=`<button class="minibtn" data-restore="${r.id}">복구</button>`;
+    tr.innerHTML=`<td>${r.no||r.id.slice(0,6)}${ch}</td>
+      <td><span class="badge ${stCls}">${stTxt}</span></td>
+      <td>${r.name||''}<br><span style="color:var(--sub);font-size:11px">${r.phone||''}</span></td>
+      <td>${q.join(' ')||'-'}</td>
+      <td style="font-size:11.5px">${eng||'-'}</td>
+      <td>${won(r.amount||0)}</td>
+      <td>${r.payer||'-'}</td>
+      <td>${act}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+/* 상태 변경 — 취소 시 재고 복구, 복구 시 재점유 */
+async function setStatus(id, action){
+  const ref=COL().doc(id); const metaRef=META();
+  try{
+    await db.runTransaction(async tx=>{
+      const d=await tx.get(ref); if(!d.exists) throw new Error('없는 신청');
+      const r=d.data(); const m=(await tx.get(metaRef)).data()||{cross:0,plaque:0};
+      if(action==='pay'){ tx.update(ref,{status:'paid'}); }
+      else if(action==='cancel'){
+        if(r.status!=='canceled'){
+          tx.set(metaRef,{cross:Math.max(0,(m.cross||0)-(r.cross||0)),plaque:Math.max(0,(m.plaque||0)-(r.plaque||0))},{merge:true});
+        }
+        tx.update(ref,{status:'canceled'});
+      }else if(action==='restore'){
+        const nc=(m.cross||0)+(r.cross||0), np=(m.plaque||0)+(r.plaque||0);
+        if(nc>LIMIT.cross||np>LIMIT.plaque) throw new Error('잔여 부족으로 복구할 수 없습니다.');
+        tx.set(metaRef,{cross:nc,plaque:np},{merge:true});
+        tx.update(ref,{status:'reserved'});
+      }
+    });
+    toast(action==='pay'?'입금확인 처리했습니다.':action==='cancel'?'취소했습니다. (재고 복구)':'복구했습니다.');
+  }catch(e){ toast(e.message||'처리 실패'); }
+}
+
+/* 오프라인 등록 */
+async function submitOffline(){
+  const name=$('#offName').value.trim();
+  const phone=$('#offPhone').value.trim();
+  if(offQty.cross===0){ toast('십자가 수량을 입력하세요.'); return; }
+  const engraves=$('#offEngrave').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const amount=offQty.cross*PRICE.cross;
+  const paid=$('#offPaid').checked;
+  try{
+    await runReserveTxn({cross:offQty.cross,plaque:0},{
+      name:name||'(오프라인)',phone,payer:name,group:'',engraves,amount,
+      channel:'offline',status:paid?'paid':'reserved',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('오프라인 등록 완료');
+    $('#offModal').classList.remove('show');
+    offQty={cross:0,plaque:0}; $('#offQCross').textContent='0';
+    $('#offName').value='';$('#offPhone').value='';$('#offEngrave').value='';$('#offPaid').checked=false;
+  }catch(e){ toast(e.message||'등록 실패'); }
+}
+
+/* 엑셀 내보내기 */
+async function exportExcel(){
+  if(typeof ExcelJS==='undefined'){ toast('엑셀 라이브러리를 불러오지 못했습니다.'); return; }
+  const snap=await COL().orderBy('createdAt','asc').get();
+  const wb=new ExcelJS.Workbook(); const ws=wb.addWorksheet('사전예약');
+  ws.columns=[
+    {header:'접수번호',key:'no',width:12},{header:'상태',key:'st',width:10},
+    {header:'성명',key:'name',width:12},{header:'연락처',key:'phone',width:16},
+    {header:'소속',key:'group',width:14},{header:'십자가',key:'cross',width:8},
+    {header:'각인',key:'eng',width:30},
+    {header:'금액',key:'amount',width:12},{header:'입금자',key:'payer',width:12},
+    {header:'채널',key:'ch',width:8},
+  ];
+  ws.getRow(1).font={bold:true};
+  snap.forEach(d=>{const r=d.data();
+    ws.addRow({no:r.no||d.id.slice(0,6),st:r.status==='paid'?'입금확인':r.status==='canceled'?'취소':'대기',
+      name:r.name,phone:r.phone,group:r.group,cross:r.cross||0,
+      eng:(r.engraves||[]).filter(Boolean).join(', '),amount:r.amount||0,payer:r.payer,
+      ch:r.channel==='offline'?'오프라인':'온라인'});
+  });
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`십자가사전예약_${new Date().toISOString().slice(0,10)}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* 재고 기준 수동 설정(점유 카운터 보정) */
+async function adjustInventory(){
+  const c=prompt(`십자가 점유 수량(현재 ${used.cross}) — 새 값:`, used.cross);
+  if(c===null) return;
+  await META().set({cross:Math.max(0,parseInt(c,10)||0)},{merge:true});
+  toast('재고 기준을 갱신했습니다.');
+}
+
+/* =========================================================
+   이벤트 바인딩 / 라우팅
+   ========================================================= */
+function showPwModal(){ $('#pwModal').classList.add('show'); setTimeout(()=>$('#pwInput').focus(),100); }
+function checkPw(){
+  if($('#pwInput').value===ADMIN_PASSWORD){ $('#pwModal').classList.remove('show'); $('#pwInput').value=''; enterAdmin(); }
+  else toast('비밀번호가 일치하지 않습니다.');
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  bindSteppers(); syncForm(); subscribeMeta();
+
+  $('#resForm').addEventListener('submit',submitReservation);
+  $('#fPhone').addEventListener('input',e=>{ // 전화 자동 하이픈
+    let v=e.target.value.replace(/[^0-9]/g,'').slice(0,11);
+    if(v.length>=4&&v.length<8)v=v.slice(0,3)+'-'+v.slice(3);
+    else if(v.length>=8)v=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+    e.target.value=v;
+  });
+  $('#copyAcct').addEventListener('click',()=>{navigator.clipboard?.writeText('302-1898-9079-11');toast('계좌번호를 복사했습니다.');});
+  $('#doneClose').addEventListener('click',()=>$('#doneModal').classList.remove('show'));
+
+  // 관리자 진입: URL 해시 또는 푸터 '관리' 5회 탭
+  $('#adminHint').addEventListener('click',showPwModal);
+  $('#pwSubmit').addEventListener('click',checkPw);
+  $('#pwInput').addEventListener('keydown',e=>{if(e.key==='Enter')checkPw();});
+  $('#pwCancel').addEventListener('click',()=>$('#pwModal').classList.remove('show'));
+  $('#btnLogout').addEventListener('click',exitAdmin);
+  $('#btnOffline').addEventListener('click',()=>$('#offModal').classList.add('show'));
+  $('#offCancel').addEventListener('click',()=>$('#offModal').classList.remove('show'));
+  $('#offSubmit').addEventListener('click',submitOffline);
+  $('#btnExport').addEventListener('click',exportExcel);
+  $('#btnAdjust').addEventListener('click',adjustInventory);
+
+  // 관리자 테이블 액션 위임
+  $('#resTbody').addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    if(b.dataset.pay)setStatus(b.dataset.pay,'pay');
+    else if(b.dataset.cancel){ if(confirm('이 신청을 취소할까요? 재고가 복구됩니다.'))setStatus(b.dataset.cancel,'cancel'); }
+    else if(b.dataset.restore)setStatus(b.dataset.restore,'restore');
+  });
+
+  // 내 신청 조회·수정
+  $('#lookupOpen').addEventListener('click',()=>{ $('#lkResult').innerHTML=''; $('#lookupModal').classList.add('show'); });
+  $('#lkCancel').addEventListener('click',()=>$('#lookupModal').classList.remove('show'));
+  $('#lkSubmit').addEventListener('click',lookupReservations);
+  $('#lkPhone').addEventListener('input',hyphenPhone);
+  $('#edPhone').addEventListener('input',hyphenPhone);
+  $('#edCancel').addEventListener('click',()=>$('#editModal').classList.remove('show'));
+  $('#edSave').addEventListener('click',saveEdit);
+  $('#lkResult').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-edit]'); if(!b)return;
+    openEdit(b.dataset.edit);
+  });
+
+  if(location.hash===ADMIN_HASH) showPwModal();
+});
+
+/* ===== 내 신청 조회 ===== */
+let _lookupCache={};   // id -> data
+function hyphenPhone(e){
+  let v=e.target.value.replace(/[^0-9]/g,'').slice(0,11);
+  if(v.length>=4&&v.length<8)v=v.slice(0,3)+'-'+v.slice(3);
+  else if(v.length>=8)v=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+  e.target.value=v;
+}
+async function lookupReservations(){
+  if(!fbReady){ toast('서버 연결이 설정되지 않았습니다.'); return; }
+  const name=$('#lkName').value.trim();
+  const phone=$('#lkPhone').value.trim();
+  if(!name||!phone){ toast('성명과 연락처를 입력해 주세요.'); return; }
+  $('#lkResult').innerHTML='<p style="font-size:13px;color:var(--sub);text-align:center">조회 중…</p>';
+  try{
+    const snap=await COL().where('name','==',name).where('phone','==',phone).get();
+    const rows=[]; snap.forEach(d=>{ if(d.data().status!=='canceled'){ rows.push({id:d.id,...d.data()}); _lookupCache[d.id]=d.data(); }});
+    if(rows.length===0){ $('#lkResult').innerHTML='<p style="font-size:13.5px;color:var(--warn);text-align:center;padding:8px">일치하는 신청 내역이 없습니다.<br>성명·연락처를 확인해 주세요.</p>'; return; }
+    $('#lkResult').innerHTML=rows.map(r=>{
+      const q=[]; if(r.cross)q.push(`십자가 ${r.cross}개`); if(r.plaque)q.push(`교우패 ${r.plaque}개`);
+      const st=r.status==='paid'?'<span class="badge paid">입금확인</span>':'<span class="badge reserved">입금대기</span>';
+      return `<div class="receipt" style="margin:0 0 10px">
+        <div class="no">접수번호 <b>${r.no||r.id.slice(0,6)}</b> ${st}</div>
+        <div style="margin-top:8px;font-size:14px">${q.join(' · ')} — <b>${won(r.amount||0)}원</b></div>
+        <button class="btn ghost" data-edit="${r.id}" style="margin-top:10px;padding:9px">이 신청 수정하기</button>
+      </div>`;
+    }).join('');
+  }catch(e){ console.warn(e); $('#lkResult').innerHTML='<p style="font-size:13px;color:var(--warn);text-align:center">조회 중 문제가 발생했습니다.</p>'; }
+}
+
+/* ===== 수정 ===== */
+let _edit={id:null, status:null, orig:{cross:0,plaque:0}, q:{cross:0,plaque:0}};
+function openEdit(id){
+  const r=_lookupCache[id]; if(!r) return;
+  _edit={id, status:r.status, orig:{cross:r.cross||0,plaque:r.plaque||0}, q:{cross:r.cross||0,plaque:r.plaque||0}};
+  const paid = r.status==='paid';
+  $('#editSub').textContent = paid
+    ? '입금이 확인된 신청입니다. 각인 문구와 연락처만 수정할 수 있습니다.'
+    : '입금 전 신청입니다. 수량·각인·연락처·입금자명을 수정할 수 있습니다.';
+  // 입금 후엔 수량 스테퍼/입금자명 숨김
+  $('#editReserved').style.display = paid ? 'none' : 'block';
+  $('#edPayerField').style.display = paid ? 'none' : 'block';
+  $('#edQCross').textContent=_edit.q.cross;
+  $('#edPhone').value=r.phone||'';
+  $('#edPayer').value=r.payer||'';
+  // 각인 초기값
+  buildEditEngrave(r.engraves||[]);
+  updateEditTotal();
+  $('#lookupModal').classList.remove('show');
+  $('#editModal').classList.add('show');
+}
+function editRemain(k){ // 이 신청이 이미 점유한 수량은 되돌려 계산
+  return remain(k) + _edit.orig[k];
+}
+function buildEditEngrave(prev){
+  const field=$('#edEngraveField'); const wrap=$('#edEngraveList');
+  const n=_edit.q.cross;
+  if(n>0) field.style.display='block'; else { field.style.display='none'; wrap.innerHTML=''; return; }
+  const curVals=[...wrap.querySelectorAll('input')].map(i=>i.value);
+  const src = curVals.length?curVals:prev;
+  wrap.innerHTML='';
+  for(let i=0;i<n;i++){
+    const row=document.createElement('div'); row.className='er';
+    const val=(src[i]||'').replace(/"/g,'&quot;');
+    row.innerHTML=`<span class="idx">${i+1}번</span>
+      <input type="text" maxlength="${ENGRAVE_MAX}" placeholder="성명+세례명 (선택)" value="${val}">
+      <span class="cnt">0/${ENGRAVE_MAX}</span>`;
+    const inp=row.querySelector('input'); const cnt=row.querySelector('.cnt');
+    const upd=()=>cnt.textContent=`${inp.value.length}/${ENGRAVE_MAX}`;
+    inp.addEventListener('input',upd); upd();
+    wrap.appendChild(row);
+  }
+}
+function updateEditTotal(){
+  const t=_edit.q.cross*PRICE.cross;
+  $('#edTotal').innerHTML=`${won(t)}<small>원</small>`;
+  const rc=editRemain('cross');
+  $('#edRemainHint').textContent=`신청 가능: 십자가 ${rc}개 이내`;
+}
+// 수정 모달 스테퍼(재고 상한은 editRemain 기준)
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.stepper[data-for="editcross"] button');
+  if(!b) return;
+  const key='cross';
+  const d=parseInt(b.dataset.d,10);
+  let v=_edit.q[key]+d;
+  v=Math.max(0,Math.min(v,editRemain(key)));
+  if(v===_edit.q[key]&&d>0){ toast('남은 수량을 초과할 수 없습니다.'); }
+  _edit.q[key]=v;
+  $('#edQCross').textContent=v;
+  buildEditEngrave([]);
+  updateEditTotal();
+});
+
+async function saveEdit(){
+  if(!_edit.id) return;
+  const phone=$('#edPhone').value.trim();
+  if(!phone){ toast('연락처를 입력해 주세요.'); return; }
+  const engraves=[...$('#edEngraveList').querySelectorAll('input')].map(i=>i.value.trim());
+  const paid=_edit.status==='paid';
+  $('#edSave').disabled=true; $('#edSave').textContent='저장 중…';
+  try{
+    await db.runTransaction(async tx=>{
+      const ref=COL().doc(_edit.id); const metaRef=META();
+      const cur=(await tx.get(ref)).data(); if(!cur) throw new Error('신청을 찾을 수 없습니다.');
+      if(cur.status==='canceled') throw new Error('취소된 신청입니다.');
+      const upd={phone, engraves};
+      if(!paid){
+        // 수량 변경분만큼 재고 조정
+        const m=(await tx.get(metaRef)).data()||{cross:0,plaque:0};
+        const dC=_edit.q.cross-(cur.cross||0);
+        const nc=(m.cross||0)+dC;
+        if(nc>LIMIT.cross) throw new Error('십자가 잔여 수량이 부족합니다.');
+        if(_edit.q.cross===0) throw new Error('수량은 최소 1개 이상이어야 합니다.');
+        tx.set(metaRef,{cross:Math.max(0,nc)},{merge:true});
+        upd.cross=_edit.q.cross; upd.plaque=0;
+        upd.amount=_edit.q.cross*PRICE.cross;
+        upd.payer=$('#edPayer').value.trim()||cur.payer;
+        // 각인 길이를 수량에 맞춤
+        upd.engraves=engraves.slice(0,_edit.q.cross);
+      }
+      tx.update(ref,upd);
+    });
+    toast('신청 내역이 수정되었습니다.');
+    $('#editModal').classList.remove('show');
+    $('#lookupModal').classList.add('show');
+    lookupReservations();
+  }catch(e){ toast(e.message||'수정에 실패했습니다.'); }
+  finally{ $('#edSave').disabled=false; $('#edSave').textContent='수정 저장'; }
+}
+document.addEventListener('DOMContentLoaded',()=>{}); // no-op guard
+</script>
+<!-- 내 신청 조회 모달 -->
+<div class="modal" id="lookupModal">
+  <div class="box">
+    <h3>내 신청 조회</h3>
+    <p class="sub">신청하실 때 입력한 성명과 연락처를 넣어주세요.</p>
+    <div class="field"><label>성명</label><input type="text" id="lkName" maxlength="20" placeholder="홍길동"></div>
+    <div class="field"><label>연락처</label><input type="tel" id="lkPhone" maxlength="14" placeholder="010-1234-5678" inputmode="numeric"></div>
+    <button class="btn" id="lkSubmit">조회하기</button>
+    <button class="btn ghost" id="lkCancel" style="margin-top:8px">닫기</button>
+    <div id="lkResult" style="margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- 내 신청 수정 모달 -->
+<div class="modal" id="editModal">
+  <div class="box">
+    <h3>신청 내역 수정</h3>
+    <p class="sub" id="editSub"></p>
+
+    <div id="editReserved">
+      <!-- 입금 전: 수량 수정 -->
+      <div class="field">
+        <label>신청 수량</label>
+        <div class="qtyrow">
+          <div class="qlbl">십자가 <span class="sub">30,000원</span></div>
+          <div class="stepper" data-for="editcross"><button type="button" data-d="-1">−</button><span class="val" id="edQCross">0</span><button type="button" data-d="1">+</button></div>
+        </div>
+        <div class="hint" id="edRemainHint"></div>
+      </div>
+    </div>
+
+    <!-- 각인(십자가 수량만큼) -->
+    <div class="field" id="edEngraveField" style="display:none">
+      <label>각인 문구 <span style="font-weight:500;color:var(--sub)">(15자 이내)</span></label>
+      <div class="engrave-list" id="edEngraveList"></div>
+    </div>
+
+    <div class="field"><label>연락처</label><input type="tel" id="edPhone" maxlength="14" inputmode="numeric"></div>
+    <div class="field" id="edPayerField"><label>입금자명</label><input type="text" id="edPayer" maxlength="20"></div>
+
+    <div class="total"><span class="l">결제 예정 금액</span><span class="v" id="edTotal">0<small>원</small></span></div>
+
+    <button class="btn" id="edSave" style="margin-top:14px">수정 저장</button>
+    <button class="btn ghost" id="edCancel" style="margin-top:8px">취소</button>
+    <p style="font-size:12px;color:var(--sub);text-align:center;margin-top:12px;line-height:1.6">신청 취소는 <b>생태환경분과</b>로 문의해 주세요.</p>
+  </div>
+</div>
+
+</body>
+</html>

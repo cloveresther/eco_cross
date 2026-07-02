@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -58,7 +57,18 @@
   .wrap{max-width:var(--maxw);margin:0 auto;padding:0 16px 56px;width:100%}
 
   /* ── 헤더 ── */
-  header{padding:26px 16px 0;text-align:center}
+  header{padding:26px 16px 0;text-align:center;position:relative}
+  .videobtn{position:absolute;top:22px;right:0;display:inline-flex;align-items:center;gap:5px;
+    background:rgba(255,255,255,.9);border:1px solid var(--leaf);color:var(--leaf-d);
+    font:inherit;font-size:12.5px;font-weight:700;padding:7px 12px 7px 10px;border-radius:99px;cursor:pointer;
+    box-shadow:0 1px 4px rgba(40,50,30,.1);transition:filter .15s,transform .05s;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+  .videobtn:hover{filter:brightness(1.03)}
+  .videobtn:active{transform:translateY(1px)}
+  .videobtn svg{width:13px;height:13px;flex:none}
+  @media(max-width:420px){
+    .videobtn{top:18px;font-size:11.5px;padding:6px 10px 6px 9px}
+    .videobtn svg{width:11px;height:11px}
+  }
   .eyebrow{font-size:13px;color:var(--leaf);font-weight:700;letter-spacing:.06em}
   h1{font-size:25px;font-weight:800;margin-top:6px;letter-spacing:-.01em}
   h1 .accent{color:var(--leaf)}
@@ -157,6 +167,13 @@
   .modal{position:fixed;inset:0;background:rgba(30,38,22,.5);display:none;align-items:center;justify-content:center;padding:18px;z-index:80}
   .modal.show{display:flex}
   .modal .box{background:#fff;border-radius:16px;max-width:440px;width:100%;max-height:88vh;overflow:auto;padding:22px}
+  /* 동영상 모달 */
+  .modal .box.vbox{padding:0;background:#000;position:relative;max-width:400px;overflow:hidden}
+  .vbox video{display:block;width:100%;max-height:78vh;background:#000}
+  .vbox .vcap{color:#eee;font-size:12.5px;text-align:center;padding:10px 14px 14px;background:#000}
+  .vbox .vclose{position:absolute;top:10px;right:10px;z-index:2;width:34px;height:34px;border-radius:99px;
+    border:none;background:rgba(0,0,0,.55);color:#fff;font-size:16px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center}
+  .vbox .vclose:hover{background:rgba(0,0,0,.75)}
   .modal .box h3{font-size:18px;font-weight:800;margin-bottom:6px}
   .modal .box .sub{font-size:13px;color:var(--sub);margin-bottom:16px}
   .receipt{background:#f4f3ea;border-radius:12px;padding:16px;margin:14px 0}
@@ -199,6 +216,10 @@
 <div class="wrap">
 
   <header>
+    <button type="button" class="videobtn" id="videoOpen" aria-label="십자가 영상 보기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>
+      <span>십자가 보러가기</span>
+    </button>
     <div class="eyebrow">성모동산 은행나무로 제작한</div>
     <h1>십자가 <span class="accent">사전예약</span></h1>
     <p class="lede">소하동성당 성모동산을 오래 지켜온 은행나무로<br>거룩한 십자가를 제작하였습니다.</p>
@@ -787,6 +808,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('#copyAcct').addEventListener('click',()=>{navigator.clipboard?.writeText('302-1898-9079-11');toast('계좌번호를 복사했습니다.');});
   $('#doneClose').addEventListener('click',()=>$('#doneModal').classList.remove('show'));
 
+  // 십자가 영상 모달
+  const vm=$('#videoModal'), vv=$('#crossVideo');
+  $('#videoOpen').addEventListener('click',()=>{ vm.classList.add('show'); try{ vv.currentTime=0; vv.play(); }catch(e){} });
+  const closeVideo=()=>{ vm.classList.remove('show'); try{ vv.pause(); }catch(e){} };
+  $('#videoClose').addEventListener('click',closeVideo);
+  vm.addEventListener('click',e=>{ if(e.target===vm) closeVideo(); });
+
   // 관리자 진입: URL 해시 또는 푸터 '관리' 5회 탭
   $('#adminHint').addEventListener('click',showPwModal);
   $('#pwSubmit').addEventListener('click',checkPw);
@@ -1000,6 +1028,18 @@ document.addEventListener('DOMContentLoaded',()=>{}); // no-op guard
     <button class="btn" id="edSave" style="margin-top:14px">수정 저장</button>
     <button class="btn ghost" id="edCancel" style="margin-top:8px">취소</button>
     <p style="font-size:12px;color:var(--sub);text-align:center;margin-top:12px;line-height:1.6">신청 취소는 <b>생태환경분과</b>로 문의해 주세요.</p>
+  </div>
+</div>
+
+<!-- 동영상 모달 -->
+<div class="modal" id="videoModal">
+  <div class="box vbox">
+    <button type="button" class="vclose" id="videoClose" aria-label="닫기">✕</button>
+    <video id="crossVideo" controls playsinline preload="metadata" poster="">
+      <source src="cross_video.mp4" type="video/mp4">
+      영상을 재생할 수 없습니다.
+    </video>
+    <p class="vcap">성모동산 은행나무로 만든 «우리 하느님» 십자가</p>
   </div>
 </div>
 
